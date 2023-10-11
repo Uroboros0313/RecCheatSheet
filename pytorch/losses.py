@@ -2,9 +2,6 @@ import torch
 
 
 def dvalue_weighted_distill_ranking_loss(logits, y_true, uid_tensor, eps=1e-4):
-    '''
-    
-    '''
     assert logits.shape == y_true.shape
     assert logits.shape == uid_tensor.shape
     
@@ -21,9 +18,6 @@ def dvalue_weighted_distill_ranking_loss(logits, y_true, uid_tensor, eps=1e-4):
 
 
 def distill_ranking_loss(logits, y_true, uid_tensor, eps=1e-4):
-    '''
-    
-    '''
     assert logits.shape == y_true.shape
     assert logits.shape == uid_tensor.shape
     
@@ -39,9 +33,6 @@ def distill_ranking_loss(logits, y_true, uid_tensor, eps=1e-4):
 
 
 def bpr_loss(logits, y_true, uid_tensor, eps=1e-4):
-    '''
-    
-    '''
     assert logits.shape == y_true.shape
     assert logits.shape == uid_tensor.shape
     
@@ -64,14 +55,13 @@ def listnet_loss(logits, y_true, uid_tensor, eps=1e-4):
     assert logits.shape == y_true.shape
     assert logits.shape == uid_tensor.shape
     
+    logits = torch.exp(logits)
     uid_mask = (uid_tensor == uid_tensor.transpose(0, 1)).float()
-    label_mask = torch.diag(y_true.squeeze())
     logits_mat = logits.repeat(1, logits.shape[0]).T
     
-    pos_indices = (y_true.reshape(-1,) > 0.99)
-    pos_score = torch.sum(torch.exp(uid_mask * logits_mat) * label_mask, dim=-1)
-    sum_ = torch.sum(torch.exp(uid_mask * logits_mat), dim=-1)
-    norm_socre = (pos_score / sum_)[pos_indices]
+    pos_indices = (y_true.reshape(-1,) > 0.5)
+    sum_ = torch.sum(uid_mask * logits_mat, dim=-1, keepdim=True)
+    norm_socre = (logits / sum_)[pos_indices, :]
     
     loss_ = - torch.sum(torch.log(norm_socre + eps))
     

@@ -19,6 +19,7 @@ sparse
 
 # cache
 __pycache__
+.idea
 *.pyc
 
 # pretrained_models

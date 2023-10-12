@@ -32,14 +32,14 @@ class BucketDistillRankingLoss(DistillRankingLoss):
         self.boundaries = sorted(boundaries)
         self.num_bucket = len(boundaries) + 1
         self.bucketizer = tf.raw_ops.Bucketize
-        
+
         super().__init__(use_dvalue=use_dvalue)
 
     def __bucketize__(self, y_true):
         bucket_idxs = self.bucketizer(input=y_true, boundaries=self.boundaries)
-        norm_bucketized_values =\
+        norm_bucketized_values = \
             tf.divide(tf.cast(bucket_idxs, tf.float32), self.num_bucket)
-        
+
         return norm_bucketized_values
 
     def __call__(self, y_true, logits, uid_tensor, eps=1e-4):
@@ -127,24 +127,33 @@ class ListNetLoss():
         return loss_
 
 
-class LambdaLoss():
-    def __init__(self, k=None, metric='LambdaRank') -> None:
-        '''
-        param k: metric@K
-        param metric: {'ndcgCost1', 'LambdaRank'}
-        '''
-        self.k = k  # NDCG@K
+class MetricWeight():
+    def __init__(self, metric='LambdaRank'):
+        self.__metric_fn__ = (lambda **kwargs: 1.0)
         self.metric = metric
-        self.__metric_fn__ = (lambda G, D, **kargs: 1.0)
-        if metric == 'LambdaRank':
-            self.__metric_fn__ = self.__lambda_rank_weight__
-        elif metric == 'ndcgCost1':
-            self.__metric_fn__ = self.__ndcg_cost1_weight__
 
-    def __call__(self, y_true, logits, uid_tensor, eps=1e-4):
-        return self.__loss_fn__(y_true, logits, uid_tensor, eps)
+        if metric == "LambdaRank":
+            self.__metric_fn__ = self.lambda_rank_weight
+        elif metric == "ndcgCost1":
+            self.__metric_fn__ = self.ndcg_cost1_weight
+        elif metric == "ndcgCost2":
+            self.__metric_fn__ = self.ndcg_cost2_weight
+        elif metric == "ndcgCostMix":
+            self.__metric_fn__ = self.ndcg_cost_mix_weight
+        elif metric == "arpCost1":
+            self.__metric_fn__ = self.arp_cost1
+        elif metric == "arpCost2":
+            self.__metric_fn__ = self.arp_cost2
+        else:
+            pass
 
-    def __lambda_rank_weight__(self, G, D):
+    def __call__(self, **kwargs):
+        return self.__metric_fn__(**kwargs)
+
+    @staticmethod
+    def lambda_rank_weight(**kwargs):
+        G, D = kwargs.get("G", None), kwargs.get("D", None)
+
         rawinvD = tf.pow(D, -1.0)
         inf_mask = tf.math.is_finite(rawinvD)
         invD = tf.where(inf_mask, rawinvD, 0.0)
@@ -155,12 +164,67 @@ class LambdaLoss():
         weights = diffG_mat * diffInvD_mat
         return weights
 
-    def __ndcg_cost1_weight__(self, G, D):
+    @staticmethod
+    def ndcg_cost1_weight(**kwargs):
+        G, D = kwargs.get("G", None), kwargs.get("D", None)
+
         raw_weights = tf.transpose(G / D, perm=[1, 0])
         nan_mask = tf.math.is_nan(raw_weights)
-        
+
         weights = tf.where(condition=~nan_mask, x=raw_weights, y=0.0)
         return weights
+
+    @staticmethod
+    def ndcg_cost2_weight(**kwargs):
+        G, D = kwargs.get("G", None), kwargs.get("D", None)
+
+        abs_diffG = tf.abs(G - tf.transpose(G, perm=[1, 0]))
+        pos_mat = tf.cumsum(tf.ones_like(D, dtype=tf.float32), axis=-1)
+        rel_pos_mat = tf.abs(pos_mat - tf.transpose(pos_mat, perm=[1, 0]))
+        inv_delta_posG = tf.abs(tf.pow(tf_log2(rel_pos_mat + 1), -1) - tf.pow(tf_log2(rel_pos_mat + 2), -1))
+
+        null_mask = tf.math.is_nan(inv_delta_posG) | tf.math.is_inf(inv_delta_posG)
+
+        weights = tf.where(condition=(~null_mask) & (G > 0.0),
+                           x=inv_delta_posG * abs_diffG,
+                           y=0.0)
+
+        return weights
+    
+    @staticmethod
+    def ndcg_cost_mix_weight(**kwargs):
+        pass
+    
+    @staticmethod
+    def arp_cost1(**kwargs):
+        y_true = kwargs.get("y_true", None)
+        abs_weight = tf.math.abs(y_true)
+        weights = tf.transpose(abs_weight, perm=[1, 0]) + tf.zeros_like(abs_weight)
+
+        return weights
+
+    @staticmethod
+    def arp_cost2(**kwargs):
+        y_true = kwargs.get("y_true", None)
+
+        score_diff = y_true - tf.transpose(y_true, perm=[1, 0])
+        weights = tf.abs(score_diff)
+
+        return weights
+
+
+class LambdaLoss():
+    def __init__(self, k=None, metric='LambdaRank') -> None:
+        '''
+        param k: metric@K
+        param metric: {'ndcgCost1', 'LambdaRank'}
+        '''
+        self.k = k  # NDCG@K
+        self.metric = metric
+        self.metric_weight_fn = MetricWeight(metric=metric)
+
+    def __call__(self, y_true, logits, uid_tensor, eps=1e-4):
+        return self.__loss_fn__(y_true, logits, uid_tensor, eps)
 
     def __loss_fn__(self, y_true, logits, uid_tensor, eps):
         uid_mask = tf.cast(tf.equal(uid_tensor, tf.transpose(uid_tensor, perm=[1, 0])), tf.float32)
@@ -195,7 +259,7 @@ class LambdaLoss():
         loss_mat = label_mat * tf.math.log(logits_mat + eps) + \
                    (1.0 - label_mat) * tf.math.log(1.0 - logits_mat + eps)
 
-        weights = self.__metric_fn__(G, D)
+        weights = self.metric_weight_fn(G=G, D=D, y_true=true_sorted_by_pred)
 
         # metric@K的掩码
         if self.k != None:
@@ -222,3 +286,6 @@ if __name__ == '__main__':
     print(f"BucketDistillRankingLoss:{BucketDistillRankingLoss()(rels, preds, uid_tensor)}")
     print(f"LambdaRankLoss:{LambdaLoss()(rels, preds, uid_tensor)}")
     print(f"ndcgCost1Loss:{LambdaLoss(metric='ndcgCost1')(rels, preds, uid_tensor)}")
+    print(f"ndcgCost2Loss:{LambdaLoss(metric='ndcgCost2')(rels, preds, uid_tensor)}")
+    print(f"arpCost1Loss:{LambdaLoss(metric='arpCost1')(rels, preds, uid_tensor)}")
+    print(f"arpCost2Loss:{LambdaLoss(metric='arpCost2')(rels, preds, uid_tensor)}")

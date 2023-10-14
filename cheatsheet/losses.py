@@ -3,6 +3,38 @@ import tensorflow as tf
 from utils import tf_log2
 
 
+class BprLoss():
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, y_true, logits, uid_tensor, eps=1e-4):
+        return self.__loss_fn__(y_true, logits, uid_tensor, eps)
+
+    def __loss_fn__(self, y_true, logits, uid_tensor, eps):
+        uid_mask = tf.cast(tf.equal(uid_tensor, tf.transpose(uid_tensor, perm=[1, 0])), tf.float32)
+        label_mask = tf.cast(tf.not_equal(y_true, tf.transpose(y_true, perm=[1, 0])), tf.float32)
+
+        bpr_label_mat = (tf.subtract(y_true, tf.transpose(y_true, perm=[1, 0])) + 1.0) / 2.0
+        bpr_logits_mat = tf.sigmoid(tf.subtract(logits, tf.transpose(logits, perm=[1, 0])))
+
+        loss_mat = bpr_label_mat * tf.math.log(bpr_logits_mat + eps) + \
+                   (1.0 - bpr_label_mat) * tf.math.log(1.0 - bpr_logits_mat + eps)
+        loss_ = - tf.reduce_sum(label_mask * uid_mask * loss_mat)
+
+        return loss_
+
+
+class InBatchSoftMaxLoss():
+    def __init__(self) -> None:
+        pass
+
+    def __call__(self, x):
+        return self.__loss_fn__(x)
+
+    def __loss_fn__(self, x):
+        return super().__loss_fn__(x)
+
+
 class DistillRankingLoss():
     def __init__(self, use_dvalue=False) -> None:
         self.use_dvalue = use_dvalue
@@ -45,38 +77,6 @@ class BucketDistillRankingLoss(DistillRankingLoss):
     def __call__(self, y_true, logits, uid_tensor, eps=1e-4):
         bucketized_y_true = self.__bucketize__(y_true)
         return self.__loss_fn__(bucketized_y_true, logits, uid_tensor, eps)
-
-
-class BprLoss():
-    def __init__(self) -> None:
-        pass
-
-    def __call__(self, y_true, logits, uid_tensor, eps=1e-4):
-        return self.__loss_fn__(y_true, logits, uid_tensor, eps)
-
-    def __loss_fn__(self, y_true, logits, uid_tensor, eps):
-        uid_mask = tf.cast(tf.equal(uid_tensor, tf.transpose(uid_tensor, perm=[1, 0])), tf.float32)
-        label_mask = tf.cast(tf.not_equal(y_true, tf.transpose(y_true, perm=[1, 0])), tf.float32)
-
-        bpr_label_mat = (tf.subtract(y_true, tf.transpose(y_true, perm=[1, 0])) + 1.0) / 2.0
-        bpr_logits_mat = tf.sigmoid(tf.subtract(logits, tf.transpose(logits, perm=[1, 0])))
-
-        loss_mat = bpr_label_mat * tf.math.log(bpr_logits_mat + eps) + \
-                   (1.0 - bpr_label_mat) * tf.math.log(1.0 - bpr_logits_mat + eps)
-        loss_ = - tf.reduce_sum(label_mask * uid_mask * loss_mat)
-
-        return loss_
-
-
-class InBatchSoftMaxLoss():
-    def __init__(self) -> None:
-        pass
-
-    def __call__(self, x):
-        return self.__loss_fn__(x)
-
-    def __loss_fn__(self, x):
-        return super().__loss_fn__(x)
 
 
 class ListMLELoss():
@@ -270,6 +270,19 @@ class LambdaLoss():
 
         loss_ = -tf.reduce_sum(weights * loss_mat * uid_mask * topK_mask)
         return loss_
+
+
+class ApproxNDCG():
+    def __init__(self) -> None:
+        pass
+    
+    def __loss_fn__(self, y_true, logits, uid_tensor, eps):
+        pass
+    
+
+class NeuralNDCG():
+    def __init__(self) -> None:
+        pass
 
 
 if __name__ == '__main__':

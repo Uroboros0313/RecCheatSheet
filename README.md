@@ -16,6 +16,11 @@
   -  [CIKM-2018-The LambdaLoss Framework for Ranking Metric Optimization](https://storage.googleapis.com/pub-tools-public-publication-data/pdf/1e34e05e5e4bf2d12f41eb9ff29ac3da9fdb4de3.pdf)
   -  [大众点评搜索基于知识图谱的深度学习排序实践](https://tech.meituan.com/2019/01/17/dianping-search-deeplearning.html)
 
+- ApproxMetricLoss(NDCG/MRR)
+  - [微软-A General Approximation Framework for Direct
+Optimization of Information Retrieval Measures](https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/tr-2008-164.pdf)
+
+
 ### 多Loss联合蒸馏
 
 ### 精排-粗排联合训练/共享底层/Embedding蒸馏

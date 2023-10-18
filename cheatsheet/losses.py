@@ -190,11 +190,11 @@ class MetricWeight():
                            y=0.0)
 
         return weights
-    
+
     @staticmethod
     def ndcg_cost_mix_weight(**kwargs):
         pass
-    
+
     @staticmethod
     def arp_cost1(**kwargs):
         y_true = kwargs.get("y_true", None)
@@ -272,17 +272,67 @@ class LambdaLoss():
         return loss_
 
 
-class ApproxNDCG():
+class ApproxMetricLoss():
     def __init__(self) -> None:
         pass
-    
-    def __loss_fn__(self, y_true, logits, uid_tensor, eps):
-        pass
-    
 
-class NeuralNDCG():
+    def __call__(self, y_true, logits, uid_tensor, temperture=0.1, eps=1e-4):
+        return self.__loss_fn__(y_true, logits, uid_tensor, temperture, eps)
+
+    def approx_rank(self, uid_mask, logits, temperture):
+        uid_mask = uid_mask - tf.compat.v1.matrix_diag(tf.linalg.diag_part(uid_mask))
+        logits_mat = tf.sigmoid((logits - tf.transpose(logits, perm=[1, 0])) / temperture)
+        appr_rank = tf.reduce_sum(input_tensor=tf.transpose(uid_mask * logits_mat, perm=[1, 0]),
+                                  axis=-1,
+                                  keepdims=True) + 1.0
+
+        return appr_rank
+
+    def __loss_fn__(self, **kwargs):
+        raise NotImplementedError("Lossfn not implemented")
+
+
+class ApproxNDCGLoss(ApproxMetricLoss):
     def __init__(self) -> None:
         pass
+
+    def __loss_fn__(self, y_true, logits, uid_tensor, temperture, eps):
+        uid_mask = tf.cast(tf.equal(uid_tensor, tf.transpose(uid_tensor, perm=[1, 0])), tf.float32)
+
+        gap_values = tf.reduce_sum(uid_mask, axis=-1, keepdims=True)
+        gap_y_true = y_true - gap_values
+
+        true_rank = tf.squeeze(tf.argsort(gap_y_true, axis=0, direction="DESCENDING"), axis=-1)
+        y_true_sorted = tf.gather(y_true, indices=true_rank)
+
+        D = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
+                     x=tf_log2(1.0 + tf.cumsum(uid_mask, axis=1)),
+                     y=uid_mask)
+        bestDCG = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
+                           x=(tf.math.pow(2.0, tf.transpose(y_true_sorted, perm=[1, 0]) - 1.0)) / D,
+                           y=uid_mask)
+        inv_maxDCG = 1.0 / tf.reduce_sum(bestDCG, axis=-1, keepdims=True)
+
+        appr_rank = self.approx_rank(uid_mask, logits, temperture)
+        apprD = 1.0 / tf_log2(1.0 + appr_rank)
+        G = tf.pow(2.0, y_true) - 1.0
+
+        loss_ = -tf.reduce_sum(G * apprD * inv_maxDCG)
+        return loss_
+
+
+class ApproxMRRLoss(ApproxMetricLoss):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def __loss_fn__(self, y_true, logits, uid_tensor, temperture, eps):
+        uid_mask = tf.cast(tf.equal(uid_tensor, tf.transpose(uid_tensor, perm=[1, 0])), tf.float32)
+        appr_rank = self.approx_rank(uid_mask, logits, temperture)
+        apprD = 1.0 / tf_log2(1.0 + appr_rank)
+
+        loss_ = - tf.reduce_sum(apprD * y_true)
+        return loss_
+
 
 
 if __name__ == '__main__':
@@ -302,3 +352,5 @@ if __name__ == '__main__':
     print(f"ndcgCost2Loss:{LambdaLoss(metric='ndcgCost2')(rels, preds, uid_tensor)}")
     print(f"arpCost1Loss:{LambdaLoss(metric='arpCost1')(rels, preds, uid_tensor)}")
     print(f"arpCost2Loss:{LambdaLoss(metric='arpCost2')(rels, preds, uid_tensor)}")
+    print(f"apporxNDCG:{ApproxNDCGLoss()(rels, preds, uid_tensor)}")
+    print(f"approxMRR:{ApproxMRRLoss()(rels, preds, uid_tensor)}")

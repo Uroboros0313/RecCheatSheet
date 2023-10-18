@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utils import tf_log2
+from utils.math import tf_log2
 
 
 class BprLoss():

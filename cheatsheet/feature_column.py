@@ -19,5 +19,3 @@ class DenseSeqFeat(namedtuple('dense_sequence_feat', [])):
 
 def create_embedding_matrix():
     pass
-
-

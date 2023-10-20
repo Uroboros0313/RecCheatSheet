@@ -1,18 +1,23 @@
 import tensorflow as tf
-from tensorflow.python.keras.layers import Layer, Activation
-
-
+from tensorflow.keras.layers import Activation, Layer
 
 try:
     unicode
 except NameError:
     unicode = str
 
-class Dice():
+
+class Dice(Layer):
     def __init__(self) -> None:
+        super().__init__()
+
+    def build(self, input_shape):
         pass
-    
-    
+
+    def call(self):
+        pass
+
+
 def build_act_fn(activation='relu'):
     if activation in ("dice", "Dice"):
         act_fn = Dice()

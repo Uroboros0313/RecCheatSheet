@@ -4,10 +4,11 @@ from tensorflow.keras.layers import Layer, Dense, Dropout, LayerNormalization
 
 from core import MLP
 
+
 class TransformerEncoder(Layer):
     def __init__(self, input_dim, ffn_unit, d_model=32, seq_len=0, num_heads=4, num_blocks=2, dropout_rate=0.2):
         super().__init__()
-        
+
         self.input_dim = input_dim
         self.ffn_unit = ffn_unit
         self.seq_len = seq_len
@@ -19,8 +20,8 @@ class TransformerEncoder(Layer):
         self.ln_layers = []
         for i in range(num_blocks):
             in_c = input_dim if i == 0 else d_model
-            self.mhsa_layers.append(MultiHeadSelfAttentionLayer(in_c, 
-                                                                attn_head_dim=d_model//num_heads,
+            self.mhsa_layers.append(MultiHeadSelfAttentionLayer(in_c,
+                                                                attn_head_dim=d_model // num_heads,
                                                                 seq_len=seq_len,
                                                                 dropout_rate=dropout_rate,
                                                                 pooling_type='concat'))
@@ -39,12 +40,12 @@ class TransformerEncoder(Layer):
 
 
 class MultiHeadSelfAttentionLayer(Layer):
-    def __init__(self, 
-                 input_dim, 
+    def __init__(self,
+                 input_dim,
                  attn_head_dim,
-                 seq_len=0, 
-                 num_heads=4, 
-                 dropout_rate=0.2, 
+                 seq_len=0,
+                 num_heads=4,
+                 dropout_rate=0.2,
                  pos_emb='fixed',
                  pooling_type='concat'):
         super().__init__()
@@ -60,12 +61,12 @@ class MultiHeadSelfAttentionLayer(Layer):
     def _generate_fixed_position_embedding_value(self):
         pos_idx = np.arange(self.seq_len).reshape(1, self.seq_len, 1)
         dim_idx = np.arange(self.input_dim).reshape(1, 1, self.input_dim)
-        
+
         angle_rates = 1 / np.power(10000, 2 * (dim_idx // 2) / self.input_dim)
         angle_rads = pos_idx * angle_rates
-        
+
         return angle_rads
-    
+
     def build(self, input_shape):
         all_heads_attn_dim = self.attn_head_dim * self.num_heads
         self.Q = self.add_weight(shape=[self.input_dim, all_heads_attn_dim], name=f'{self.__class__}_Q',
@@ -74,12 +75,12 @@ class MultiHeadSelfAttentionLayer(Layer):
                                  dtype=tf.float32)
         self.V = self.add_weight(shape=[self.input_dim, all_heads_attn_dim], name=f'{self.__class__}_V',
                                  dtype=tf.float32)
-        
+
         if self.pos_emb == 'dynamic':
             self.PE = self.add_weight(shape=[1, self.seq_len, self.input_dim])
         elif self.pos_emb == 'fixed':
             angle_rads = self._generate_fixed_position_embedding_value()
-            angle_rads[:, :, 0::2] = np.sin(angle_rads[:, : ,0::2])
+            angle_rads[:, :, 0::2] = np.sin(angle_rads[:, :, 0::2])
             angle_rads[:, :, 1::2] = np.cos(angle_rads[:, :, 1::2])
             self.PE = tf.cast(angle_rads, tf.float32)
         else:
@@ -96,12 +97,12 @@ class MultiHeadSelfAttentionLayer(Layer):
     def scaled_dot_product_attention_probs(self, queries, keys, mask):
         attn_scores = tf.matmul(queries, tf.transpose(keys, (0, 1, 3, 2)))
         attn_scores = attn_scores / tf.sqrt(tf.constant(self.attn_head_dim, dtype=tf.float32))
-        
+
         if mask == None:
             mask = tf.zeros_like(attn_scores, dtype=tf.float32)
         else:
             mask = (1.0 - mask) * -1e4
-            
+
         attn_probs = tf.nn.softmax(attn_scores + mask, axis=-1)
         return attn_probs
 
@@ -127,10 +128,8 @@ class MultiHeadSelfAttentionLayer(Layer):
         return attn_out
 
 
-
 if __name__ == '__main__':
     def test_mhsa():
-
         enc = TransformerEncoder(input_dim=128,
                                  ffn_unit=16,
                                  d_model=64,
@@ -138,5 +137,6 @@ if __name__ == '__main__':
                                  num_heads=4)
         mock_input = tf.constant(np.random.randn(64, 20, 128), dtype=tf.float32)
         print(enc(mock_input))
-        
+
+
     test_mhsa()

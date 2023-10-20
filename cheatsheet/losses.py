@@ -154,14 +154,14 @@ class MetricWeight():
     def lambda_rank_weight(**kwargs):
         G, D = kwargs.get("G", None), kwargs.get("D", None)
 
-        rawinvD = tf.pow(D, -1.0)
-        inf_mask = tf.math.is_finite(rawinvD)
-        invD = tf.where(inf_mask, rawinvD, 0.0)
+        rawinv_d = tf.pow(D, -1.0)
+        inf_mask = tf.math.is_finite(rawinv_d)
+        inv_d = tf.where(inf_mask, rawinv_d, 0.0)
 
-        diffG_mat = tf.abs(G - tf.transpose(G, perm=[1, 0]))
-        diffInvD_mat = tf.abs(invD - tf.transpose(invD, perm=[1, 0]))
+        diff_g_mat = tf.abs(G - tf.transpose(G, perm=[1, 0]))
+        diff_inv_d_mat = tf.abs(inv_d - tf.transpose(inv_d, perm=[1, 0]))
 
-        weights = diffG_mat * diffInvD_mat
+        weights = diff_g_mat * diff_inv_d_mat
         return weights
 
     @staticmethod
@@ -178,15 +178,15 @@ class MetricWeight():
     def ndcg_cost2_weight(**kwargs):
         G, D = kwargs.get("G", None), kwargs.get("D", None)
 
-        abs_diffG = tf.abs(G - tf.transpose(G, perm=[1, 0]))
+        abs_diff_g = tf.abs(G - tf.transpose(G, perm=[1, 0]))
         pos_mat = tf.cumsum(tf.ones_like(D, dtype=tf.float32), axis=-1)
         rel_pos_mat = tf.abs(pos_mat - tf.transpose(pos_mat, perm=[1, 0]))
-        inv_delta_posG = tf.abs(tf.pow(tf_log2(rel_pos_mat + 1), -1) - tf.pow(tf_log2(rel_pos_mat + 2), -1))
+        inv_delta_pos_g = tf.abs(tf.pow(tf_log2(rel_pos_mat + 1), -1) - tf.pow(tf_log2(rel_pos_mat + 2), -1))
 
-        null_mask = tf.math.is_nan(inv_delta_posG) | tf.math.is_inf(inv_delta_posG)
+        null_mask = tf.math.is_nan(inv_delta_pos_g) | tf.math.is_inf(inv_delta_pos_g)
 
         weights = tf.where(condition=(~null_mask) & (G > 0.0),
-                           x=inv_delta_posG * abs_diffG,
+                           x=inv_delta_pos_g * abs_diff_g,
                            y=0.0)
 
         return weights
@@ -244,12 +244,12 @@ class LambdaLoss():
         D = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
                      x=tf_log2(1. + tf.cumsum(uid_mask, axis=1)),
                      y=uid_mask)
-        bestDCG = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
+        best_dcg = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
                            x=(tf.math.pow(2.0, tf.transpose(y_true_sorted, perm=[1, 0]) - 1.0)) / D,
                            y=uid_mask)
-        maxDCG = tf.reduce_sum(bestDCG, axis=-1, keepdims=True)
+        inv_max_dcg = 1.0 / tf.reduce_sum(best_dcg, axis=-1, keepdims=True)
         G = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
-                     x=(tf.math.pow(2.0, tf.transpose(true_sorted_by_pred, perm=[1, 0]) - 1.0)) / maxDCG,
+                     x=(tf.math.pow(2.0, tf.transpose(true_sorted_by_pred, perm=[1, 0]) - 1.0)) * inv_max_dcg,
                      y=uid_mask)
 
         # BPR Loss加权
@@ -308,16 +308,16 @@ class ApproxNDCGLoss(ApproxMetricLoss):
         D = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
                      x=tf_log2(1.0 + tf.cumsum(uid_mask, axis=1)),
                      y=uid_mask)
-        bestDCG = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
+        best_dcg = tf.where(condition=tf.cast(uid_mask, dtype=tf.bool),
                            x=(tf.math.pow(2.0, tf.transpose(y_true_sorted, perm=[1, 0]) - 1.0)) / D,
                            y=uid_mask)
-        inv_maxDCG = 1.0 / tf.reduce_sum(bestDCG, axis=-1, keepdims=True)
+        inv_max_dcg = 1.0 / tf.reduce_sum(best_dcg, axis=-1, keepdims=True)
 
         appr_rank = self.approx_rank(uid_mask, logits, temperture)
-        apprD = 1.0 / tf_log2(1.0 + appr_rank)
+        appr_discount = 1.0 / tf_log2(1.0 + appr_rank)
         G = tf.pow(2.0, y_true) - 1.0
 
-        loss_ = -tf.reduce_sum(G * apprD * inv_maxDCG)
+        loss_ = -tf.reduce_sum(G * appr_discount * inv_max_dcg)
         return loss_
 
 
@@ -328,11 +328,10 @@ class ApproxMRRLoss(ApproxMetricLoss):
     def __loss_fn__(self, y_true, logits, uid_tensor, temperture, eps):
         uid_mask = tf.cast(tf.equal(uid_tensor, tf.transpose(uid_tensor, perm=[1, 0])), tf.float32)
         appr_rank = self.approx_rank(uid_mask, logits, temperture)
-        apprD = 1.0 / tf_log2(1.0 + appr_rank)
+        appr_discount = 1.0 / tf_log2(1.0 + appr_rank)
 
-        loss_ = - tf.reduce_sum(apprD * y_true)
+        loss_ = - tf.reduce_sum(appr_discount * y_true)
         return loss_
-
 
 
 if __name__ == '__main__':

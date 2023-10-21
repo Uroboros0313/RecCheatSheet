@@ -1,4 +1,3 @@
-import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Layer, Dense, BatchNormalization, Dropout
 
@@ -54,5 +53,5 @@ class CapsuleNetwork(Layer):
     def build(self, input_shape):
         pass
 
-    def call(sefl, x):
+    def call(self, x):
         pass

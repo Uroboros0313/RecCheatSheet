@@ -1,4 +1,5 @@
-from collections import namedtuple
+from typing import List, Dict
+from collections import namedtuple, OrderedDict
 
 
 class SparseFeat(namedtuple('sparse_feat', [])):
@@ -17,5 +18,12 @@ class DenseSeqFeat(namedtuple('dense_sequence_feat', [])):
     pass
 
 
-def create_embedding_matrix():
+def build_input_layers(feature_columns) -> Dict:
     pass
+    
+
+def build_embedding_lookup_dict() -> Dict:
+    pass
+
+
+

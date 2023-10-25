@@ -1,9 +1,56 @@
 import tensorflow as tf
-from tensorflow.keras.layers import Layer
+from tensorflow.keras.layers import Layer, Dropout
 
 from core import MLP, Linear
 
-
+class MMOEBlock(Layer):
+    def __init__(self, 
+                 num_expert,
+                 num_task,
+                 emb_dim=32,
+                 expert_hidden_units=[128, 64],
+                 gate_hidden_units=[32, 16],
+                 dropout_rate=0.3):
+        super().__init__()
+        
+        self.num_expert = num_expert
+        self.num_task = num_task
+        self.emb_dim = emb_dim
+        self.dropout_rate = dropout_rate
+        self.expert_hidden_units = expert_hidden_units
+        self.gate_hidden_units = gate_hidden_units
+        
+        self.gate_net = None
+        self.expert_net = []
+        
+    def build(self, input_shape):
+        self.gate_net = [MLP(hidden_units=self.gate_hidden_units + [self.num_expert], 
+            dropout_rate=self.dropout_rate, use_bn=True) for _ in range(self.num_task)]
+        
+        self.expert_net = [MLP(hidden_units=self.expert_hidden_units + [self.emb_dim], 
+            dropout_rate=self.dropout_rate, use_bn=True) for _ in range(self.num_expert)]
+        
+        self.gate_dropout = Dropout(rate=self.dropout_rate,)
+    
+    def call(self, x):
+        '''
+        param x: input shape [batch_size, concat_emb_dim]
+        '''
+        expert_out = [tf.expand_dims(net(x),axis=2) for net in self.expert_net]
+        expert_out = tf.concat(expert_out, axis=2) # [BATCH_SIZE, EMB_SIZE, NUM_EXPERT]
+        
+        gate_out = [tf.expand_dims(net(x),axis=2) for net in self.gate_net] 
+        gate_out = tf.concat(gate_out, axis=2)# [BATCH_SIZE, NUM_EXPERT, NUM_TASK]
+        
+        gate_out = self.gate_dropout(gate_out)
+        norm_gate_out = tf.nn.softmax(gate_out, axis=1)
+        
+        task_embs = tf.matmul(expert_out, norm_gate_out)
+        task_embs = tf.split(task_embs, num_or_size_splits=self.num_task, axis=2)
+        
+        return task_embs
+        
+        
 class MVKEBlock(Layer):
     def __init__(self,
                  num_feats,
@@ -25,12 +72,6 @@ class MVKEBlock(Layer):
         self.vk_embs = self.add_weight(name="w",
                                        shape=(self.emb_dim, self.num_kernel),
                                        trainable=True)
-        '''
-        if self.combiner == 'weighted_sum':
-            input_dim = self.emb_dim
-        elif self.combiner == 'concat':
-            input_dim = self.emb_dim * self.num_feats
-        '''
 
         self.vk_towers = [MLP(self.hidden_dims,
                               act='relu',
@@ -80,16 +121,21 @@ if __name__ == "__main__":
 
     a = tf.Variable(np.random.randn(20, 30), dtype=tf.float32)
     b = tf.Variable(np.random.randn(30, 40), dtype=tf.float32)
-    print(a / tf.math.sqrt(tf.constant(12, dtype=tf.float32)))
-    print(tf.transpose(tf.matmul(a, b), perm=(0, 1)))
-    print(a.get_shape().as_list())
+    #print(a / tf.math.sqrt(tf.constant(12, dtype=tf.float32)))
+    #print(tf.transpose(tf.matmul(a, b), perm=(0, 1)))
+    #print(a.get_shape().as_list())
 
 
     def test_mvke():
         mock_ninput = tf.Variable(np.ones(shape=(64, 10, 32)), dtype=tf.float32)
         mock_tag = tf.Variable(np.random.randn(64, 32), dtype=tf.float32)
         model = MVKEBlock(10, combiner='concat')
-        print(model(mock_ninput, mock_tag))
+        #print(model(mock_ninput, mock_tag))
 
-
+    def test_mmoe():
+        mock_input = tf.constant(np.ones(shape=(64, 1280)), dtype=tf.float32)
+        model = MMOEBlock(6, 3)
+        #print(model(mock_input))
+        
     test_mvke()
+    test_mmoe()

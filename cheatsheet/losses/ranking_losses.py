@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from utils.math import tf_log2
+from math_utils import tf_log2
 
 
 class BprLoss():
@@ -332,6 +332,7 @@ class ApproxMRRLoss(ApproxMetricLoss):
 
         loss_ = - tf.reduce_sum(appr_discount * y_true)
         return loss_
+    
 
 
 if __name__ == '__main__':

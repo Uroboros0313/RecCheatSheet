@@ -23,6 +23,12 @@ Optimization of Information Retrieval Measures](https://www.microsoft.com/en-us/
 
 ### 多Loss联合蒸馏
 
+### MTL多Loss学习
+
+- Multi-task learning using uncertainty to weigh losses for scene geometry and semantics.
+- GradNorm: Gradient Normalization for Adaptive Loss Balancing in Deep Multitask Networks
+- End-to-End Multi-Task Learning with Attention
+
 ### 精排-粗排联合训练/共享底层/Embedding蒸馏
 - 阿里-Rocket Launching：A Universal and Efficient Framework for Training Well-Performing Light Net
 
@@ -34,7 +40,6 @@ Optimization of Information Retrieval Measures](https://www.microsoft.com/en-us/
 
 ### 千人千模
 - 快手-POSO: Personalized Cold Start Modules for Large-scale Recommender Systems.
-
 
 ### 因果表征
 - 快手-Disentangled Causal Embedding With Contrastive Learning For Recommender System

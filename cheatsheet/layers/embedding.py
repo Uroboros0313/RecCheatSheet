@@ -25,17 +25,6 @@ class DenseEmbedding(Layer):
         return out
 
 
-class AutoDisEmbedding(Layer):
-    def __init__(self):
-        super().__init__()
-
-    def build(self, input_shape):
-        pass
-
-    def call(self, x):
-        pass
-
-
 class VanillaEmbedding(Layer):
     def __init__(self, vocab_size, embedding_size=32, use_hash=False, seed=[0, 1]):
         super().__init__()

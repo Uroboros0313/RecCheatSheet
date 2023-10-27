@@ -41,7 +41,5 @@ Optimization of Information Retrieval Measures](https://www.microsoft.com/en-us/
 ### 千人千模
 - 快手-POSO: Personalized Cold Start Modules for Large-scale Recommender Systems.
 
-### 因果表征
-- 快手-Disentangled Causal Embedding With Contrastive Learning For Recommender System
 
 

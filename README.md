@@ -34,6 +34,8 @@ Optimization of Information Retrieval Measures](https://www.microsoft.com/en-us/
 
 ## 双塔模型结构优化
 
+## 特征交叉
+- 华为-IntTower: the Next Generation of Two-Tower Model for Pre-Ranking System
 ### 专家混合网络
 - 腾讯-Mixture of Virtual-Kernel Experts for Multi-Objective User Profile Modeling
 - Google-Empowering Long-tail Item Recommendation through Cross Decoupling Network (CDN)
